@@ -482,7 +482,7 @@ namespace HermesProxy.World.Server
             var address = GetRemoteIpAddress();
 
             string platform = GetSession().OS;
-            if (platform != "Wn64" && platform != "Mc64")
+            if (platform != "Wn64" && platform != "Mc64" && platform != "MacA")
             {
                 Log.Print(LogType.Error, $"WorldSocket.HandleAuthSession: Unknown OS for account: {GetSession().GameAccountInfo.Id} ('{authSession.RealmJoinTicket}') address: {address}");
                 CloseSocket();
