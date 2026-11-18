@@ -30,6 +30,7 @@ using Framework.Util;
 using Google.Protobuf;
 using HermesProxy;
 using HermesProxy.Auth;
+using HermesProxy.World;
 
 public class RealmManager
 {
@@ -58,8 +59,9 @@ public class RealmManager
 
         build.Build = (uint)Framework.Settings.ClientBuild;
 
-        build.Win64AuthSeed = Framework.Settings.ClientSeed;
-        build.Mac64AuthSeed = Framework.Settings.ClientSeed;
+        build.FallbackStaticSeed = Framework.Settings.ClientSeed;
+        if (GameData.BuildAuthSeeds.TryGetValue(build.Build, out var seeds))
+            build.BuildSeeds = seeds;
 
         _builds.Add(build);
     }
@@ -312,6 +314,6 @@ public class RealmBuildInfo
     public uint MinorVersion;
     public uint BugfixVersion;
     public char[] HotfixVersion = new char[4];
-    public byte[] Win64AuthSeed = new byte[16];
-    public byte[] Mac64AuthSeed = new byte[16];
+    public byte[] FallbackStaticSeed = new byte[16];
+    public Dictionary<string, byte[]> BuildSeeds = new(StringComparer.Ordinal);
 }

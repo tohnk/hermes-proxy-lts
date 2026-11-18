@@ -32,6 +32,8 @@ cd artifacts/linux-x64
 
 To try the fork with an existing setup, make a separate publish directory and copy your own `HermesProxy.config` and `CSV/` there. For example, SoloCraft's bundle has modified CSVs that are not part of this fork. Keep account data and packet logs out of source control. Stop any existing proxy before starting the new one on the same ports.
 
+`CSV/BuildAuthSeeds.csv` can supply a 16-byte hex seed per client build and platform. The file is optional. A missing row or a non-matching platform seed falls back to `ClientSeed` in `HermesProxy.config`, so existing static-seed setups do not need any changes.
+
 The GitHub Actions workflow builds, tests, and packages Linux x64 and Windows x64. Old launcher/release automation is retained under `.github/legacy-workflows/` for reference only.
 
 ## Ingame Settings

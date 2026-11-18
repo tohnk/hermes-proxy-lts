@@ -20,6 +20,7 @@ using System.Net.Sockets;
 using System.Collections.Generic;
 using System.Reflection;
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 
 using Framework.Constants;
 using Framework.Cryptography;
@@ -480,13 +481,8 @@ namespace HermesProxy.World.Server
             // For hook purposes, we get Remoteaddress at this point.
             var address = GetRemoteIpAddress();
 
-            Sha256 digestKeyHash = new();
-            digestKeyHash.Process(GetSession().SessionKey, GetSession().SessionKey.Length);
-            if (GetSession().OS == "Wn64")
-                digestKeyHash.Finish(buildInfo.Win64AuthSeed);
-            else if (GetSession().OS == "Mc64")
-                digestKeyHash.Finish(buildInfo.Mac64AuthSeed);
-            else
+            string platform = GetSession().OS;
+            if (platform != "Wn64" && platform != "Mc64")
             {
                 Log.Print(LogType.Error, $"WorldSocket.HandleAuthSession: Unknown OS for account: {GetSession().GameAccountInfo.Id} ('{authSession.RealmJoinTicket}') address: {address}");
                 CloseSocket();
@@ -494,13 +490,9 @@ namespace HermesProxy.World.Server
                 return;
             }
 
-            HmacSha256 hmac = new(digestKeyHash.Digest);
-            hmac.Process(authSession.LocalChallenge, authSession.LocalChallenge.Count);
-            hmac.Process(_serverChallenge, 16);
-            hmac.Finish(AuthCheckSeed, 16);
-
             // Check that Key and account name are the same on client and server
-            if (!hmac.Digest.Compare(authSession.Digest))
+            if (!VerifyRealmAuthDigest(buildInfo, platform, GetSession().SessionKey,
+                authSession.LocalChallenge, _serverChallenge, authSession.Digest))
             {
                 Log.Print(LogType.Error, $"WorldSocket.HandleAuthSession: Authentication failed for account: {GetSession().GameAccountInfo.Id} ('{authSession.RealmJoinTicket}') address: {address}");
                 CloseSocket();
@@ -546,6 +538,30 @@ namespace HermesProxy.World.Server
 
             SendPacket(new EnterEncryptedMode(_encryptKey, true));
             AsyncRead();
+        }
+
+        internal static bool VerifyRealmAuthDigest(RealmBuildInfo buildInfo, string platform,
+            byte[] sessionKey, byte[] clientChallenge, byte[] serverChallenge, byte[] digest)
+        {
+            const int digestSize = 24;
+            if (digest.Length != digestSize)
+                return false;
+
+            bool MatchesSeed(byte[] seed)
+            {
+                Sha256 digestKeyHash = new();
+                digestKeyHash.Process(sessionKey, sessionKey.Length);
+                digestKeyHash.Finish(seed);
+                using HmacSha256 hmac = new(digestKeyHash.Digest);
+                hmac.Process(clientChallenge, clientChallenge.Length);
+                hmac.Process(serverChallenge, 16);
+                hmac.Finish(AuthCheckSeed, 16);
+                return CryptographicOperations.FixedTimeEquals(hmac.Digest.AsSpan(0, digestSize), digest);
+            }
+
+            // A static-seed launcher must still work when a platform seed is configured.
+            return (buildInfo.BuildSeeds.TryGetValue(platform, out var platformSeed) && MatchesSeed(platformSeed))
+                || MatchesSeed(buildInfo.FallbackStaticSeed);
         }
 
         public struct ConnectToKey

@@ -15,6 +15,7 @@ namespace HermesProxy.World
     public static class GameData
     {
         // From CSV
+        internal static Dictionary<uint, Dictionary<string, byte[]>> BuildAuthSeeds { get; private set; } = new();
         public static SortedDictionary<uint, BroadcastText> BroadcastTextStore = new SortedDictionary<uint, BroadcastText>();
         public static Dictionary<uint, uint> ItemDisplayIdStore = new Dictionary<uint, uint>();
         public static Dictionary<uint, uint> ItemDisplayIdToFileDataIdStore = new Dictionary<uint, uint>();
@@ -489,6 +490,7 @@ namespace HermesProxy.World
         public static void LoadEverything()
         {
             Log.Print(LogType.Storage, "Loading data files...");
+            BuildAuthSeeds = LoadBuildAuthSeeds(Path.Combine("CSV", "BuildAuthSeeds.csv"));
             LoadBroadcastTexts();
             LoadItemDisplayIds();
             LoadItemRecords();
@@ -522,6 +524,46 @@ namespace HermesProxy.World
             LoadQuestBits();
             LoadHotfixes();
             Log.Print(LogType.Storage, "Finished loading data.");
+        }
+
+        internal static Dictionary<uint, Dictionary<string, byte[]>> LoadBuildAuthSeeds(string path)
+        {
+            var builds = new Dictionary<uint, Dictionary<string, byte[]>>();
+            if (!File.Exists(path))
+                return builds; // Older data bundles use only the configured static seed.
+
+            using var parser = new TextFieldParser(path);
+            parser.CommentTokens = new[] { "#" };
+            parser.SetDelimiters(",");
+            parser.HasFieldsEnclosedInQuotes = true;
+            parser.ReadLine(); // Skip the column names.
+
+            while (!parser.EndOfData)
+            {
+                long line = parser.LineNumber;
+                var fields = parser.ReadFields();
+                if (fields is not { Length: >= 3 } || !uint.TryParse(fields[0], out uint build) ||
+                    string.IsNullOrWhiteSpace(fields[1]) || fields[2].Length != 32)
+                    throw new InvalidDataException($"Invalid auth seed record in '{path}' at line {line}.");
+
+                byte[] seed;
+                try
+                {
+                    seed = Convert.FromHexString(fields[2]);
+                }
+                catch (FormatException ex)
+                {
+                    throw new InvalidDataException($"Invalid auth seed in '{path}' at line {line}.", ex);
+                }
+
+                if (!builds.TryGetValue(build, out var seeds))
+                    builds.Add(build, seeds = new Dictionary<string, byte[]>(StringComparer.Ordinal));
+
+                if (!seeds.TryAdd(fields[1], seed))
+                    throw new InvalidDataException($"Duplicate auth seed record in '{path}' at line {line}.");
+            }
+
+            return builds;
         }
 
         public static void LoadBroadcastTexts()
