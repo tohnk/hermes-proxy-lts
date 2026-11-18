@@ -333,7 +333,7 @@ namespace HermesProxy.World.Server.Packets
             hash.Process((uint)Payload.Where.Type);
             hash.Finish(BitConverter.GetBytes(Payload.Port));
 
-            Payload.Signature = RsaCrypt.RSA.SignHash(hash.Digest, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1).Reverse().ToArray();
+            Payload.Signature = Enumerable.Reverse(RsaCrypt.RSA.SignHash(hash.Digest, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)).ToArray();
 
             _worldPacket.WriteBytes(Payload.Signature, (uint)Payload.Signature.Length);
             _worldPacket.WriteBytes(whereBuffer);
@@ -430,7 +430,7 @@ namespace HermesProxy.World.Server.Packets
             hash.Process(BitConverter.GetBytes(Enabled), 1);
             hash.Finish(EnableEncryptionSeed, 16);
 
-            _worldPacket.WriteBytes(RsaCrypt.RSA.SignHash(hash.Digest, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1).Reverse().ToArray());
+            _worldPacket.WriteBytes(Enumerable.Reverse(RsaCrypt.RSA.SignHash(hash.Digest, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1)).ToArray());
             _worldPacket.WriteBit(Enabled);
             _worldPacket.FlushBits();
         }

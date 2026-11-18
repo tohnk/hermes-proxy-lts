@@ -124,16 +124,15 @@ internal static class OsSpecific
     /// For example on Windows you can just double click the exe which spawns a new Console Window Host
     public static bool AreWeInOurOwnConsole()
     {
+        if (!OperatingSystem.IsWindows())
+            return false;
+
         try
         {
-#if _WINDOWS
             var consoleWindowHandle = GetConsoleWindow();
             GetWindowThreadProcessId(consoleWindowHandle, out var consoleWindowProcess);
             var weAreTheOwner = (consoleWindowProcess == Environment.ProcessId);
             return weAreTheOwner;
-#else
-            return true;
-#endif
         }
         catch
         {
@@ -141,11 +140,9 @@ internal static class OsSpecific
         }
     }
 
-#if _WINDOWS
     [DllImport("kernel32.dll")]
     static extern IntPtr GetConsoleWindow();
 
     [DllImport("user32.dll", SetLastError=true)]
     static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
-#endif
 }

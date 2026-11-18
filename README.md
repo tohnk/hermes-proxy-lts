@@ -1,6 +1,8 @@
-# HermesProxy ![Build](https://github.com/WowLegacyCore/HermesProxy/actions/workflows/Build_Proxy.yml/badge.svg)
+# HermesProxy (.NET 10)
 
 This project enables play on existing legacy WoW emulation cores using the modern clients. It serves as a translation layer, converting all network traffic to the appropriate format each side can understand.
+
+This GPLv3 fork is based on [WowLegacyCore commit `0a47373`](https://github.com/WowLegacyCore/HermesProxy/commit/0a47373). That commit is on a different line of development from [official v3.10 (`841a26f`)](https://github.com/WowLegacyCore/HermesProxy/releases/tag/v3.10). Changes from v3.10 should be reviewed and imported individually.
 
 There are 4 major components to the application:
 - The modern BNetServer to which the client initially logs into.
@@ -13,7 +15,24 @@ There are 4 major components to the application:
 | Modern Versions | Legacy Versions |
 |-----------------|-----------------|
 | 1.14.0          | 1.12.1          |
+| 1.14.2 (42597)   | 1.12.1 (5875)   |
 | 2.5.2           | 2.4.3           |
+
+## Build and test
+
+Use a .NET 10 SDK that ships with .NET runtime 10.0.15 or newer (see [`global.json`](global.json)). On Linux, the runtime uses the system OpenSSL libraries. OpenSSL 4 support was added in [.NET 10.0.15](https://github.com/dotnet/runtime/pull/135534); a self-contained publish still needs system OpenSSL.
+
+```sh
+dotnet test --configuration Release
+dotnet publish HermesProxy/HermesProxy.csproj --configuration Release \
+  --runtime linux-x64 --self-contained --output artifacts/linux-x64
+cd artifacts/linux-x64
+./HermesProxy --no-version-check
+```
+
+To try the fork with an existing setup, make a separate publish directory and copy your own `HermesProxy.config` and `CSV/` there. For example, SoloCraft's bundle has modified CSVs that are not part of this fork. Keep account data and packet logs out of source control. Stop any existing proxy before starting the new one on the same ports.
+
+The GitHub Actions workflow builds, tests, and packages Linux x64 and Windows x64. Old launcher/release automation is retained under `.github/legacy-workflows/` for reference only.
 
 ## Ingame Settings
 Note: Keep `Optimize Network for Speed` **enabled** (it's under `System` -> `Network`), otherwise you will get kicked every now and then.

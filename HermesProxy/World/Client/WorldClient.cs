@@ -20,8 +20,9 @@ namespace HermesProxy.World.Client
 {
     public partial class WorldClient
     {
+        private static readonly TimeSpan WorldAuthTimeout = TimeSpan.FromSeconds(30);
+        private readonly TaskCompletionSource<bool> _authentication = new(TaskCreationOptions.RunContinuationsAsynchronously);
         Socket _clientSocket;
-        bool? _isSuccessful;
         uint _queuePosition;
         string _username;
         Realm _realm;
@@ -52,7 +53,6 @@ namespace HermesProxy.World.Client
             _realm = realm;
             _globalSession = globalSession;
             _username = globalSession.Username;
-            _isSuccessful = null;
             _delayedPacketsToServer = new Dictionary<Opcode, List<WorldPacket>>();
             _delayedPacketsToClient = new Dictionary<Opcode, List<ServerPacket>>();
 
@@ -69,18 +69,29 @@ namespace HermesProxy.World.Client
             catch (Exception ex)
             {
                 Log.Print(LogType.Error, $"Socket Error: {ex.Message}");
-                _isSuccessful = false;
+                _authentication.TrySetResult(false);
             }
 
-            while (_isSuccessful == null)
-            { }
+            // The receive loop completes this on a different thread.
+            if (!_authentication.Task.Wait(WorldAuthTimeout) && _authentication.TrySetResult(false))
+                Log.Print(LogType.Error, "Timed out waiting for world server authentication.");
 
-            return (bool)_isSuccessful;
+            bool authenticated = _authentication.Task.Result;
+            if (!authenticated)
+                _clientSocket?.Dispose();
+
+            return authenticated;
         }
 
         public bool IsAuthenticated()
         {
-            return _isSuccessful == true;
+            return _authentication.Task.IsCompletedSuccessfully && _authentication.Task.Result;
+        }
+
+        private void OnWorldConnectionClosed()
+        {
+            if (!_authentication.TrySetResult(false) && IsAuthenticated() && GetSession().WorldClient == this)
+                GetSession().OnDisconnect();
         }
 
         private void InitializeEncryption(byte[] sessionKey)
@@ -127,9 +138,8 @@ namespace HermesProxy.World.Client
         {
             try
             {
-                Log.Print(LogType.Network, "Connection established!");
-
                 _clientSocket.EndConnect(AR);
+                Log.Print(LogType.Network, "Connection established!");
                 _clientSocket.ReceiveBufferSize = 65535;
 
                 Task.Run(ReceiveLoop);
@@ -137,8 +147,7 @@ namespace HermesProxy.World.Client
             catch (Exception ex)
             {
                 Log.Print(LogType.Error, $"Connect Error: {ex.Message}");
-                if (_isSuccessful == null)
-                    _isSuccessful = false;
+                _authentication.TrySetResult(false);
             }
         }
 
@@ -167,10 +176,7 @@ namespace HermesProxy.World.Client
                     if (!await ReceiveBufferFully(headerBuffer))
                     {
                         Log.PrintNet(LogType.Error, LogNetDir.S2P, "Socket Closed By GameWorldServer (header)");
-                        if (_isSuccessful == null)
-                            _isSuccessful = false;
-                        else if (GetSession().WorldClient == this)
-                            GetSession().OnDisconnect();
+                        OnWorldConnectionClosed();
                         return;
                     }
 
@@ -192,10 +198,7 @@ namespace HermesProxy.World.Client
                         if (!await ReceiveBufferFully(new ArraySegment<byte>(buffer, 2, buffer.Length - 2)))
                         {
                             Log.PrintNet(LogType.Error, LogNetDir.S2P, "Socket Closed By GameWorldServer (payload)");
-                            if (_isSuccessful == null)
-                                _isSuccessful = false;
-                            else if (GetSession().WorldClient == this)
-                                GetSession().OnDisconnect();
+                            OnWorldConnectionClosed();
                             return;
                         }
 
@@ -208,13 +211,7 @@ namespace HermesProxy.World.Client
             catch(Exception e)
             {
                 Log.PrintNet(LogType.Error, LogNetDir.S2P, $"Packet Read Error: {e.Message}{Environment.NewLine}{e.StackTrace}");
-                if (_isSuccessful == null)
-                    _isSuccessful = false;
-                else
-                {
-                    Disconnect();
-                    GetSession().OnDisconnect();
-                }
+                OnWorldConnectionClosed();
             }
         }
 
@@ -246,8 +243,7 @@ namespace HermesProxy.World.Client
             catch (Exception ex)
             {
                 Log.PrintNet(LogType.Error, LogNetDir.P2S, $"Packet Write Error: {ex.Message}");
-                if (_isSuccessful == null)
-                    _isSuccessful = false;
+                _authentication.TrySetResult(false);
             }
             _sendMutex.ReleaseMutex();
         }
@@ -388,8 +384,7 @@ namespace HermesProxy.World.Client
                     else
                     {
                         Log.PrintNet(LogType.Warn, LogNetDir.S2P, $"No handler for opcode {universalOpcode} ({packet.GetOpcode()}) (Got unknown packet from WorldServer)");
-                        if (_isSuccessful == null)
-                            _isSuccessful = false;
+                        _authentication.TrySetResult(false);
                     }
                     break;
             }
@@ -468,7 +463,7 @@ namespace HermesProxy.World.Client
         {
             AuthResult result = (AuthResult)packet.ReadUInt8();
 
-            if (_isSuccessful == null)
+            if (!_authentication.Task.IsCompleted)
             {
                 uint billingTimeRemaining = packet.ReadUInt32();
                 byte billingFlags = packet.ReadUInt8();
@@ -488,26 +483,26 @@ namespace HermesProxy.World.Client
                     _queuePosition = 0;
                     GetSession().RealmSocket.SendAuthWaitQue(_queuePosition);
                 }
-                _isSuccessful = true;
+                _authentication.TrySetResult(true);
             }
             else if (result == AuthResult.AUTH_WAIT_QUEUE)
             {
                 _queuePosition = packet.ReadUInt32();
                 Log.Print(LogType.Network, $"Position in queue is {_queuePosition}.");
-                if (_isSuccessful != null && GetSession().RealmSocket != null)
+                if (_authentication.Task.IsCompleted && GetSession().RealmSocket != null)
                     GetSession().RealmSocket.SendAuthWaitQue(_queuePosition);
-                _isSuccessful = true;
+                _authentication.TrySetResult(true);
             }
             else
             {
                 Log.Print(LogType.Network, "Authentication failed!");
-                _isSuccessful = false;
+                OnWorldConnectionClosed();
             }
         }
 
         public void SendPing(uint ping, uint latency)
         {
-            if (!IsConnected() || _isSuccessful == false)
+            if (!IsConnected() || (_authentication.Task.IsCompleted && !IsAuthenticated()))
                 return;
 
             WorldPacket packet = new WorldPacket(Opcode.CMSG_PING);

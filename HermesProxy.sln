@@ -7,6 +7,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HermesProxy", "HermesProxy\
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Framework", "Framework\Framework.csproj", "{2F7515AD-18E3-4ACA-A14B-1929F76299E7}"
 EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "HermesProxy.Tests", "HermesProxy.Tests\HermesProxy.Tests.csproj", "{95AD43CC-4362-4702-9DFF-5FA54A463C97}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -21,6 +23,10 @@ Global
 		{2F7515AD-18E3-4ACA-A14B-1929F76299E7}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{2F7515AD-18E3-4ACA-A14B-1929F76299E7}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{2F7515AD-18E3-4ACA-A14B-1929F76299E7}.Release|Any CPU.Build.0 = Release|Any CPU
+		{95AD43CC-4362-4702-9DFF-5FA54A463C97}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{95AD43CC-4362-4702-9DFF-5FA54A463C97}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{95AD43CC-4362-4702-9DFF-5FA54A463C97}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{95AD43CC-4362-4702-9DFF-5FA54A463C97}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

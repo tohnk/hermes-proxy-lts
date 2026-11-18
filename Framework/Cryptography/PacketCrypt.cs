@@ -22,13 +22,15 @@ namespace Framework.Cryptography
 {
     public sealed class WorldCrypt : IDisposable
     {
+        public const int TagSize = 12;
+
         public void Initialize(byte[] key)
         {
             if (IsInitialized)
                 throw new InvalidOperationException("PacketCrypt already initialized!");
 
-            _serverEncrypt = new AesGcm(key);
-            _clientDecrypt = new AesGcm(key);
+            _serverEncrypt = new AesGcm(key, TagSize);
+            _clientDecrypt = new AesGcm(key, TagSize);
 
             IsInitialized = true;
         }
@@ -67,6 +69,8 @@ namespace Framework.Cryptography
 
         public void Dispose()
         {
+            _serverEncrypt?.Dispose();
+            _clientDecrypt?.Dispose();
             IsInitialized = false;
         }
 

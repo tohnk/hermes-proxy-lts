@@ -509,3 +509,9 @@ FodyWeavers.xsd
 .idea/
 *.DotSettings
 debug.*.cs
+
+# Local proxy data and diagnostic captures.
+AccountData/
+PacketsLog/
+*.pkt
+HermesProxy.local.config

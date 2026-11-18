@@ -17,11 +17,13 @@
 
 using Framework.IO;
 using Framework.Constants;
+using Framework.Cryptography;
 using System;
 using HermesProxy.World.Enums;
 using HermesProxy.World.Client;
-using Ionic.Zlib;
 using System.Collections.Generic;
+using System.IO;
+using System.IO.Compression;
 
 namespace HermesProxy.World
 {
@@ -212,22 +214,10 @@ namespace HermesProxy.World
 
         public WorldPacket Inflate(int inflatedSize)
         {
-            var arr = ReadToEnd();
             var newarr = new byte[inflatedSize];
-
-            var stream = new ZlibCodec(Ionic.Zlib.CompressionMode.Decompress)
-            {
-                InputBuffer = arr,
-                NextIn = 0,
-                AvailableBytesIn = arr.Length,
-                OutputBuffer = newarr,
-                NextOut = 0,
-                AvailableBytesOut = inflatedSize
-            };
-
-            stream.Inflate(FlushType.None);
-            stream.Inflate(FlushType.Finish);
-            stream.EndInflate();
+            using var input = new MemoryStream(ReadToEnd());
+            using var stream = new ZLibStream(input, CompressionMode.Decompress);
+            stream.ReadExactly(newarr);
 
             // Cannot use "using" here
             var pkt = new WorldPacket(GetOpcode(), newarr);
@@ -321,18 +311,18 @@ namespace HermesProxy.World
     public class PacketHeader
     {
         public int Size;
-        public byte[] Tag = new byte[12];
+        public byte[] Tag = new byte[WorldCrypt.TagSize];
 
         public void Read(byte[] buffer)
         {
             Size = BitConverter.ToInt32(buffer, 0);
-            Buffer.BlockCopy(buffer, 4, Tag, 0, 12);
+            Buffer.BlockCopy(buffer, 4, Tag, 0, WorldCrypt.TagSize);
         }
 
         public void Write(ByteBuffer byteBuffer)
         {
             byteBuffer.WriteInt32(Size);
-            byteBuffer.WriteBytes(Tag, 12);
+            byteBuffer.WriteBytes(Tag, WorldCrypt.TagSize);
         }
 
         public bool IsValidSize() { return Size < 0x40000; }
